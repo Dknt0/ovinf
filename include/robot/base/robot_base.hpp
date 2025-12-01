@@ -88,8 +88,12 @@ class RobotBase {
       motor_target_position_ = VectorT::Zero(motor_size_);
       motor_target_torque_ = VectorT::Zero(motor_size_);
       motor_target_current_ = VectorT::Zero(motor_size_);
+      motor_target_p_gain_ = VectorT::Zero(motor_size_);
+      motor_target_d_gain_ = VectorT::Zero(motor_size_);
       joint_target_position_ = VectorT::Zero(motor_size_);
       joint_target_torque_ = VectorT::Zero(motor_size_);
+      joint_target_p_gain_ = VectorT::Zero(motor_size_);
+      joint_target_d_gain_ = VectorT::Zero(motor_size_);
 
       torque_limit_ = VectorT::Zero(motor_size_);
       motor_upper_limit_ = VectorT::Zero(motor_size_);
@@ -107,14 +111,20 @@ class RobotBase {
     }
 
     virtual bool ExecuteJointTorque() = 0;
+    virtual bool ExecuteJointPosition() { return false; }
     virtual bool ExecuteMotorTorque() = 0;
     virtual bool ExecuteMotorCurrent() = 0;
+    virtual bool ExecuteMotorPosition() { return false; }
 
     VectorT& MotorTargetPosition() { return motor_target_position_; }
     VectorT& MotorTargetTorque() { return motor_target_torque_; }
     VectorT& MotorTargetCurrent() { return motor_target_current_; }
+    VectorT& MotorTargetPGain() { return motor_target_p_gain_; }
+    VectorT& MotorTargetDGain() { return motor_target_d_gain_; }
     VectorT& JointTargetPosition() { return joint_target_position_; }
     VectorT& JointTargetTorque() { return joint_target_torque_; }
+    VectorT& JointTargetPGain() { return joint_target_p_gain_; }
+    VectorT& JointTargetDGain() { return joint_target_d_gain_; }
 
     const VectorT& TorqueLimit() { return torque_limit_; }
     const VectorT& MotorUpperLimit() { return motor_upper_limit_; }
@@ -132,8 +142,12 @@ class RobotBase {
     VectorT motor_target_position_;
     VectorT motor_target_torque_;
     VectorT motor_target_current_;
+    VectorT motor_target_p_gain_;
+    VectorT motor_target_d_gain_;
     VectorT joint_target_position_;
     VectorT joint_target_torque_;
+    VectorT joint_target_p_gain_;
+    VectorT joint_target_d_gain_;
   };
 
  public:
