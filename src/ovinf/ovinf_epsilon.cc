@@ -20,7 +20,7 @@ EpsilonPolicy::EpsilonPolicy(const YAML::Node &config) : BasePolicy(config) {
   obs_buffer_size_ = config["obs_buffer_size"].as<size_t>();
   action_size_ = config["action_size"].as<size_t>();
   if (action_size_ != joint_counter) {
-    std::cerr << "Action size does not match joint size!" << std::endl;
+    throw std::runtime_error("Action size mismatch");
   }
   action_scale_ = config["action_scale"].as<float>();
   obs_scale_ang_vel_ = config["obs_scales"]["ang_vel"].as<float>();
@@ -43,8 +43,8 @@ EpsilonPolicy::EpsilonPolicy(const YAML::Node &config) : BasePolicy(config) {
   obs_buffer_ = std::make_shared<HistoryBuffer<float>>(single_obs_size_,
                                                        obs_buffer_size_);
   input_queue_ = moodycamel::ReaderWriterQueue<VectorT>(obs_buffer_size_ * 2);
-  last_action_ = VectorT(12).setZero();
-  latest_target_ = VectorT(12).setZero();
+  last_action_ = VectorT(action_size_).setZero();
+  latest_target_ = VectorT(action_size_).setZero();
 
   // Create logger
   log_flag_ = config["log_data"].as<bool>();
@@ -104,12 +104,14 @@ bool EpsilonPolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
       obs_pack.command.segment(0, 2) * obs_scale_lin_vel_;
   command_scaled(2) = obs_pack.command(2) * obs_scale_ang_vel_;
   obs.segment(0, 3) = command_scaled * obs_scale_command_;
-  obs.segment(3, 12) =
+  obs.segment(3, action_size_) =
       (obs_pack.joint_pos - joint_default_position_) * obs_scale_dof_pos_;
-  obs.segment(15, 12) = obs_pack.joint_vel * obs_scale_dof_vel_;
-  obs.segment(27, 12) = last_action_;
-  obs.segment(39, 3) = obs_pack.ang_vel * obs_scale_ang_vel_;
-  obs.segment(42, 3) = obs_pack.proj_gravity * obs_scale_proj_gravity_;
+  obs.segment(3 + action_size_, action_size_) =
+      obs_pack.joint_vel * obs_scale_dof_vel_;
+  obs.segment(3 + 2 * action_size_, action_size_) = last_action_;
+  obs.segment(3 + 3 * action_size_, 3) = obs_pack.ang_vel * obs_scale_ang_vel_;
+  obs.segment(6 + 3 * action_size_, 3) =
+      obs_pack.proj_gravity * obs_scale_proj_gravity_;
 
   if (!inference_done_.load()) {
     input_queue_.enqueue(obs);
