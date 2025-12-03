@@ -1,5 +1,5 @@
-#ifndef FILTER_LOW_PASS_HPP
-#define FILTER_LOW_PASS_HPP
+#ifndef FILTER_CLIP_LOW_PASS_HPP
+#define FILTER_CLIP_LOW_PASS_HPP
 
 #include <yaml-cpp/yaml.h>
 
@@ -10,13 +10,14 @@
 namespace ovinf {
 
 template <typename T = Eigen::Matrix<float, Eigen::Dynamic, 1>>
-class LowPassFilter : public FilterBase<T> {
+class ClipLowPassFilter : public FilterBase<T> {
  public:
-  LowPassFilter() = delete;
-  LowPassFilter(YAML::Node const &config) : FilterBase<T>(config) {
+  ClipLowPassFilter() = delete;
+  ClipLowPassFilter(YAML::Node const &config) : FilterBase<T>(config) {
     lower_bound_ = this->ReadYamlParam(config["lower_bound"]);
     upper_bound_ = this->ReadYamlParam(config["upper_bound"]);
     alpha_ = this->ReadYamlParam(config["alpha"]);
+    clip_threshold_ = this->ReadYamlParam(config["clip_threshold"]);
     init_flag_ = false;
 
     if constexpr (is_eigen_vector_v<T>) {
@@ -26,18 +27,17 @@ class LowPassFilter : public FilterBase<T> {
 
       if (lower_bound_.size() != this->dimension_ ||
           upper_bound_.size() != this->dimension_ ||
-          alpha_.size() != this->dimension_) {
+          alpha_.size() != this->dimension_ ||
+          clip_threshold_.size() != this->dimension_) {
         throw std::runtime_error(
             "PassThroughFilter: lower_bound or upper_bound size doesn't match "
             "the vector dimension. "
             "Expected dimension: " +
             std::to_string(this->dimension_));
       }
-      one_minus_alpha_ = T(this->dimension_).setOnes() - alpha_;
     } else {
       this->last_input_ = 0;
       this->last_output_ = 0;
-      one_minus_alpha_ = 1.0 - alpha_;
     }
   }
 
@@ -50,8 +50,11 @@ class LowPassFilter : public FilterBase<T> {
                            .cwiseMax(lower_bound_);
         return last_output_;
       }
-      T filtered_value = alpha_.cwiseProduct(this->NanHandle(input)) +
-                         one_minus_alpha_.cwiseProduct(last_output_);
+      T filtered_value =
+          alpha_.cwiseProduct((this->NanHandle(input) - last_output_)
+                                  .cwiseMin(clip_threshold_)
+                                  .cwiseMax(-clip_threshold_)) +
+          last_output_;
       last_output_ =
           filtered_value.cwiseMin(upper_bound_).cwiseMax(lower_bound_);
       return last_output_;
@@ -63,7 +66,11 @@ class LowPassFilter : public FilterBase<T> {
         return last_output_;
       }
       T filtered_value =
-          alpha_ * this->NanHandle(input) + one_minus_alpha_ * last_output_;
+          alpha_ * std::max(clip_threshold_,
+                            std::min(-clip_threshold_,
+                                     this->NanHandle(input) - last_output_)) +
+          last_output_;
+
       last_output_ =
           std::max(lower_bound_, std::min(upper_bound_, filtered_value));
       return last_output_;
@@ -83,11 +90,11 @@ class LowPassFilter : public FilterBase<T> {
   T lower_bound_;
   T upper_bound_;
   T alpha_;
-  T one_minus_alpha_;
+  T clip_threshold_;
 
   bool init_flag_;
   T last_output_;
 };
 }  // namespace ovinf
 
-#endif  // !FILTER_LOW_PASS_HPP
+#endif  // !FILTER_CLIP_LOW_PASS_HPP

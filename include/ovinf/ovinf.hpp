@@ -64,7 +64,7 @@ class BasePolicy {
    * @param[in] timeout Timeout in microseconds
    */
   virtual std::optional<Eigen::Matrix<T, Eigen::Dynamic, 1>> GetResult(
-      const size_t timeout = 300) = 0;
+      const size_t timeout = 100) = 0;
 
   virtual void PrintInfo() = 0;
 

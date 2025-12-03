@@ -39,7 +39,7 @@ class PerceptivePolicy : public BasePolicy<float> {
 
   virtual bool InferUnsync(RobotObservation<float> const &obs_pack) final;
 
-  virtual std::optional<VectorT> GetResult(const size_t timeout = 300) final;
+  virtual std::optional<VectorT> GetResult(const size_t timeout = 100) final;
 
   virtual void PrintInfo() final;
 

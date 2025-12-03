@@ -67,7 +67,7 @@ class HumanoidPolicy : public BasePolicy<float> {
    *
    * @param[in] timeout Timeout in microseconds
    */
-  virtual std::optional<VectorT> GetResult(const size_t timeout = 300) final;
+  virtual std::optional<VectorT> GetResult(const size_t timeout = 100) final;
 
   virtual void PrintInfo() final;
 
