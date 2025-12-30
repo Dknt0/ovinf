@@ -7,6 +7,7 @@
 #include "ovinf_humanoid_stand.h"
 #include "ovinf_locomotion.h"
 #include "ovinf_perceptive.h"
+#include "ovinf_rnn.h"
 
 namespace ovinf {
 
@@ -26,6 +27,8 @@ class PolicyFactory {
       return std::make_shared<PerceptivePolicy>(config);
     } else if (policy_type == "Locomotion") {
       return std::make_shared<LocomotionPolicy>(config);
+    } else if (policy_type == "RNN") {
+      return std::make_shared<RnnPolicy>(config);
     } else {
       throw std::invalid_argument("Unknown policy type: " + policy_type);
     }
