@@ -16,7 +16,6 @@
 #include "atomicops.h"
 #include "ovinf.hpp"
 #include "readerwriterqueue.h"
-#include "utils/csv_loader.hpp"
 #include "utils/csv_logger.hpp"
 #include "utils/history_buffer.hpp"
 #include "utils/realtime_setting.h"
@@ -29,6 +28,10 @@ namespace ovinf {
 class BeyondMimicPolicy : public BasePolicy<float> {
   using MatrixT = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic>;
   using VectorT = Eigen::Matrix<float, Eigen::Dynamic, 1>;
+  using Vector3T = Eigen::Vector3f;
+  using QuaternionT = Eigen::Quaternion<float>;
+  using AngleAxisT = Eigen::AngleAxis<float>;
+  using Matrix3T = Eigen::Matrix3f;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -78,14 +81,14 @@ class BeyondMimicPolicy : public BasePolicy<float> {
   // OpenVINO inference
   ov::CompiledModel compiled_model_;
   ov::InferRequest infer_request_;
-  ov::Output<const ov::Node> input_info_;
+  ov::Output<const ov::Node> obs_info_;
+  ov::Output<const ov::Node> timestep_info_;
 
   // Infer data
   std::map<std::string, size_t> joint_names_;
   VectorT joint_default_position_;
 
   size_t single_obs_size_;
-  size_t obs_buffer_size_;
   size_t action_size_;
 
   float action_scale_;
@@ -96,14 +99,18 @@ class BeyondMimicPolicy : public BasePolicy<float> {
   float clip_action_;
 
   // Reference trajectory
-  TrajectoryLoader<float> traj_loader_;
-  size_t traj_length_ = 0;
-  size_t traj_current_idx_ = 0;
   std::atomic_bool dancing_started_{false};
+  size_t traj_length_ = 0;
+  float timestep_input_ = 0.0;
+  VectorT ref_joint_pos_;
+  VectorT ref_joint_vel_;
+  QuaternionT ref_base_quat_;
+
+  std::atomic_bool corrected_bias_flag_{false};
+  QuaternionT yaw_bias_;
 
   // Buffer
-  moodycamel::ReaderWriterQueue<VectorT> input_queue_;
-  std::shared_ptr<HistoryBuffer<float>> obs_buffer_;
+  VectorT current_obs_;
   VectorT last_action_;
   VectorT latest_target_;
 
