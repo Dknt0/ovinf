@@ -108,6 +108,7 @@ class BeyondMimicPolicy : public BasePolicy<float> {
 
   std::atomic_bool corrected_bias_flag_{false};
   QuaternionT yaw_bias_;
+  QuaternionT init_q_yaw_;
 
   // Buffer
   VectorT current_obs_;

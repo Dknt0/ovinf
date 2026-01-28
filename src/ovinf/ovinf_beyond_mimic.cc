@@ -67,10 +67,6 @@ BeyondMimicPolicy::BeyondMimicPolicy(const YAML::Node &config)
       }
     }
   }
-  std::cout << "Trajectory length from onnx rt_info: " << traj_length_
-            << std::endl;
-  std::cout << "Joint default position: " << joint_default_position_.transpose()
-            << std::endl;
 
   infer_request_ = compiled_model_.create_infer_request();
   obs_info_ = compiled_model_.input(0);
@@ -89,6 +85,7 @@ bool BeyondMimicPolicy::WarmUp(RobotObservation<float> const &obs_pack) {
   VectorT obs(single_obs_size_);
   obs.setZero();
   timestep_input_ = 0.0;
+  dancing_started_.store(false);
 
   if (!inference_done_.load()) {
     return false;
@@ -99,6 +96,15 @@ bool BeyondMimicPolicy::WarmUp(RobotObservation<float> const &obs_pack) {
                           current_obs_.data());
     ov::Tensor timestep_tensor(timestep_info_.get_element_type(),
                                timestep_info_.get_shape(), &timestep_input_);
+
+    // Get yaw bias
+    init_q_yaw_ = AngleAxisT(obs_pack.euler_angles(2), Vector3T::UnitZ());
+    Vector3T first_ref_ori_rpy =
+        ref_base_quat_.toRotationMatrix().eulerAngles(0, 1, 2);
+    yaw_bias_ =
+        (init_q_yaw_ * AngleAxisT(-first_ref_ori_rpy(2), Vector3T::UnitZ()))
+            .normalized();
+
     infer_start_time_ = std::chrono::high_resolution_clock::now();
 
     infer_request_.set_input_tensor(0, obs_tensor);
@@ -116,32 +122,33 @@ bool BeyondMimicPolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
   if (obs_pack.command(0, 0) > 0.15f && !dancing_started_.load()) {
     dancing_started_.store(true);
     timestep_input_ = 0.0;
-  } else if (timestep_input_ < traj_length_ - 2 && dancing_started_.load()) {
+  } else if (timestep_input_ < traj_length_ - 1 && dancing_started_.load()) {
     timestep_input_ += 1.0;
   } else {
     timestep_input_ = 0.0;
+
+    // Get yaw bias
+    init_q_yaw_ = AngleAxisT(obs_pack.euler_angles(2), Vector3T::UnitZ());
+    Vector3T first_ref_ori_rpy =
+        ref_base_quat_.toRotationMatrix().eulerAngles(0, 1, 2);
+    yaw_bias_ =
+        (init_q_yaw_ * AngleAxisT(-first_ref_ori_rpy(2), Vector3T::UnitZ()))
+            .normalized();
+
     dancing_started_.store(false);
   }
 
-  // Reference joint pos
-  obs.segment(0, action_size_) = ref_joint_pos_;
-  // Refenence joint vel
-  obs.segment(action_size_, action_size_) = ref_joint_vel_;
+  // Yaw correction
+  ref_base_quat_ = yaw_bias_ * ref_base_quat_;
 
   // Orientation difference
-  // QuaternionT current_anchor_orientation =
-  //     AngleAxisT(obs_pack.euler_angles(2), Vector3T::UnitZ()) *
-  //     AngleAxisT(obs_pack.euler_angles(1), Vector3T::UnitY()) *
-  //     AngleAxisT(obs_pack.euler_angles(0), Vector3T::UnitX());
   QuaternionT current_anchor_orientation =
       AngleAxisT(obs_pack.euler_angles(2), Vector3T::UnitZ()) *
       AngleAxisT(obs_pack.euler_angles(1), Vector3T::UnitY()) *
       AngleAxisT(obs_pack.euler_angles(0), Vector3T::UnitX());
-
   Matrix3T orientation_diff_matrix =
       (current_anchor_orientation.inverse() * ref_base_quat_)
           .toRotationMatrix();
-
   VectorT ori_input(6);
   ori_input(0, 0) = orientation_diff_matrix(0, 0);
   ori_input(1, 0) = orientation_diff_matrix(0, 1);
@@ -149,12 +156,12 @@ bool BeyondMimicPolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
   ori_input(3, 0) = orientation_diff_matrix(1, 1);
   ori_input(4, 0) = orientation_diff_matrix(2, 0);
   ori_input(5, 0) = orientation_diff_matrix(2, 1);
+
+  // Reference joint pos
+  obs.segment(0, action_size_) = ref_joint_pos_;
+  // Refenence joint vel
+  obs.segment(action_size_, action_size_) = ref_joint_vel_;
   obs.segment(2 * action_size_, 6) = ori_input;
-
-  std::cout << ref_base_quat_.coeffs().transpose() << " ; "
-            << current_anchor_orientation.coeffs().transpose() << std::endl;
-  std::cout << ori_input.transpose() << std::endl;
-
   obs.segment(6 + 2 * action_size_, 3) = obs_pack.ang_vel;
   obs.segment(9 + 2 * action_size_, action_size_) =
       obs_pack.joint_pos - joint_default_position_;
