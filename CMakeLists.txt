@@ -19,6 +19,9 @@ find_package(Eigen3 REQUIRED)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/utils SRC_UTILS)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/ovinf SRC_OVINF)
 
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
 add_library(ovinf SHARED
   ${SRC_UTILS}
   ${SRC_OVINF}
@@ -33,6 +36,8 @@ target_link_libraries(ovinf
   openvino::runtime
   yaml-cpp
   readerwriterqueue
+
+  ${OpenCV_LIBS}
 )
 
 set(BUILD_TEST OFF CACHE BOOL "Build test executables")

@@ -56,6 +56,9 @@ class RobotBase {
 
     const VectorT& Scan() { return scan_; }
 
+    // Override this function in subclass
+    virtual const VectorT& Depth() const { return scan_; };
+
    protected:
     size_t motor_size_ = 0;
     size_t joint_size_ = 0;

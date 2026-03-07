@@ -4,6 +4,7 @@
 #include "ovinf.hpp"
 #include "ovinf_beyond_mimic.h"
 #include "ovinf_epsilon.h"
+#include "ovinf_hike.h"
 #include "ovinf_humanoid.h"
 #include "ovinf_humanoid_stand.h"
 #include "ovinf_locomotion.h"
@@ -32,6 +33,8 @@ class PolicyFactory {
       return std::make_shared<RnnPolicy>(config);
     } else if (policy_type == "BeyondMimic") {
       return std::make_shared<BeyondMimicPolicy>(config);
+    } else if (policy_type == "Hike") {
+      return std::make_shared<HikePolicy>(config);
     } else {
       throw std::invalid_argument("Unknown policy type: " + policy_type);
     }
