@@ -52,6 +52,10 @@ HikePolicy::HikePolicy(const YAML::Node &config) : BasePolicy(config) {
   last_action_ = VectorT(action_size_).setZero();
   latest_target_ = VectorT(action_size_).setZero();
 
+  // TODO: Read the image size from config
+  policy_input_vec_ =
+      VectorT(single_obs_size_ * obs_buffer_size_ + 4608).setZero();
+
   // Create logger
   log_flag_ = config["log_data"].as<bool>();
   if (log_flag_) {
@@ -94,9 +98,18 @@ bool HikePolicy::WarmUp(RobotObservation<float> const &obs_pack) {
 
     depth_skipped_buffer_->Add(obs_pack.scan);
 
+    // Concatenate proprioceptive state and depth image state into
+    // policy_input_vec_
+    auto obs_hist = obs_buffer_->GetObsHistory();
+    auto depth_hist =
+        depth_skipped_buffer_->GetHistory(8, 5);  // adjust parameters if needed
+    depth_hist.setConstant(0.5);
+
+    policy_input_vec_.segment(0, obs_hist.size()) = obs_hist;
+    policy_input_vec_.segment(obs_hist.size(), depth_hist.size()) = depth_hist;
+
     ov::Tensor input_tensor(input_info_.get_element_type(),
-                            input_info_.get_shape(),
-                            obs_buffer_->GetObsHistory().data());
+                            input_info_.get_shape(), policy_input_vec_.data());
     infer_start_time_ = std::chrono::high_resolution_clock::now();
 
     infer_request_.set_input_tensor(input_tensor);
@@ -164,11 +177,20 @@ bool HikePolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
       cv::imshow("hahaha", img_big);
       cv::waitKey(1);
     };
-    test_history();
+    // test_history();
+
+    // Concatenate proprioceptive state and depth image state into
+    // policy_input_vec_
+    auto obs_hist = obs_buffer_->GetObsHistory();
+    auto depth_hist =
+        depth_skipped_buffer_->GetHistory(8, 5);  // adjust parameters if needed
+    // depth_hist.setConstant(0.5);
+
+    policy_input_vec_.segment(0, obs_hist.size()) = obs_hist;
+    policy_input_vec_.segment(obs_hist.size(), depth_hist.size()) = depth_hist;
 
     ov::Tensor input_tensor(input_info_.get_element_type(),
-                            input_info_.get_shape(),
-                            obs_buffer_->GetObsHistory().data());
+                            input_info_.get_shape(), policy_input_vec_.data());
     infer_start_time_ = std::chrono::high_resolution_clock::now();
 
     infer_request_.set_input_tensor(input_tensor);

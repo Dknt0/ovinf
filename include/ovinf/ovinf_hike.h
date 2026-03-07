@@ -110,6 +110,8 @@ class HikePolicy : public BasePolicy<float> {
   std::shared_ptr<HistoryBuffer<float>> obs_buffer_;
   std::shared_ptr<SkippedRingBuffer> depth_skipped_buffer_;
 
+  VectorT policy_input_vec_;
+
   VectorT last_action_;
   VectorT latest_target_;
 
