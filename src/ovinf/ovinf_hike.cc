@@ -37,8 +37,16 @@ HikePolicy::HikePolicy(const YAML::Node &config) : BasePolicy(config) {
   stick_to_core_ = config["stick_to_core"].as<size_t>();
   log_name_ = config["log_name"].as<std::string>();
 
+  // Image buffer parameters
+  num_images_ = config["num_images"].as<size_t>(8);
+  image_skip_ = config["image_skip"].as<size_t>(5);
+  image_width_ = config["image_width"].as<size_t>(32);
+  image_height_ = config["image_height"].as<size_t>(18);
+
   // Depth buffer
-  depth_skipped_buffer_ = std::make_shared<SkippedRingBuffer>(7 * 5 + 1);
+  // depth_skipped_buffer_ = std::make_shared<SkippedRingBuffer>(7 * 5 + 1);
+  depth_skipped_buffer_ =
+      std::make_shared<SkippedRingBuffer>((num_images_ - 1) * image_skip_ + 1);
 
   for (auto const &pair : joint_names_) {
     joint_default_position_(pair.second, 0) =
@@ -53,8 +61,9 @@ HikePolicy::HikePolicy(const YAML::Node &config) : BasePolicy(config) {
   latest_target_ = VectorT(action_size_).setZero();
 
   // TODO: Read the image size from config
-  policy_input_vec_ =
-      VectorT(single_obs_size_ * obs_buffer_size_ + 4608).setZero();
+  policy_input_vec_ = VectorT(single_obs_size_ * obs_buffer_size_ +
+                              (num_images_ * image_width_ * image_height_))
+                          .setZero();
 
   // Create logger
   log_flag_ = config["log_data"].as<bool>();
@@ -101,8 +110,8 @@ bool HikePolicy::WarmUp(RobotObservation<float> const &obs_pack) {
     // Concatenate proprioceptive state and depth image state into
     // policy_input_vec_
     auto obs_hist = obs_buffer_->GetObsHistory();
-    auto depth_hist =
-        depth_skipped_buffer_->GetHistory(8, 5);  // adjust parameters if needed
+    auto depth_hist = depth_skipped_buffer_->GetHistory(
+        num_images_, image_skip_);  // adjust parameters if needed
     depth_hist.setConstant(0.5);
 
     policy_input_vec_.segment(0, obs_hist.size()) = obs_hist;
@@ -153,13 +162,17 @@ bool HikePolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
     // std::cout << obs_pack.scan.size() << std::endl;
 
     auto test_history = [this]() {
-      auto hist_images = this->depth_skipped_buffer_->GetHistory(8, 5);
-      cv::Mat vis_image(8 * 18, 32, CV_32F);
-      for (int n = 0; n < 8; ++n) {       // history/time
-        for (int h = 0; h < 18; ++h) {    // height
-          for (int w = 0; w < 32; ++w) {  // width
-            int flat_idx = n * 18 * 32 + h * 32 + w;
-            vis_image.at<float>(n * 18 + h, w) = hist_images(flat_idx);
+      // auto hist_images = this->depth_skipped_buffer_->GetHistory(8, 5);
+      auto hist_images = this->depth_skipped_buffer_->GetHistory(
+          num_images_, image_skip_);  // adjust parameters if needed
+      cv::Mat vis_image(num_images_ * image_height_, image_width_, CV_32F);
+      for (int n = 0; n < num_images_; ++n) {       // history/time
+        for (int h = 0; h < image_height_; ++h) {   // height
+          for (int w = 0; w < image_width_; ++w) {  // width
+            int flat_idx =
+                n * image_height_ * image_width_ + h * image_width_ + w;
+            vis_image.at<float>(n * image_height_ + h, w) =
+                hist_images(flat_idx);
           }
         }
       }
@@ -182,8 +195,8 @@ bool HikePolicy::InferUnsync(RobotObservation<float> const &obs_pack) {
     // Concatenate proprioceptive state and depth image state into
     // policy_input_vec_
     auto obs_hist = obs_buffer_->GetObsHistory();
-    auto depth_hist =
-        depth_skipped_buffer_->GetHistory(8, 5);  // adjust parameters if needed
+    auto depth_hist = depth_skipped_buffer_->GetHistory(
+        num_images_, image_skip_);  // adjust parameters if needed
     // depth_hist.setConstant(0.5);
 
     policy_input_vec_.segment(0, obs_hist.size()) = obs_hist;

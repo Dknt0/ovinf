@@ -105,6 +105,11 @@ class HikePolicy : public BasePolicy<float> {
   float obs_scale_proj_gravity_;
   float clip_action_;
 
+  size_t num_images_ = 8;
+  size_t image_skip_ = 5;
+  size_t image_width_ = 32;
+  size_t image_height_ = 18;
+
   // Buffer
   moodycamel::ReaderWriterQueue<VectorT> input_queue_;
   std::shared_ptr<HistoryBuffer<float>> obs_buffer_;
