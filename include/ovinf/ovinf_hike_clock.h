@@ -134,6 +134,7 @@ class HikeClockPolicy : public BasePolicy<float> {
   size_t stick_to_core_ = 0;
 
   // Clock
+  float cycle_time_;
   bool gait_start_ = false;
   std::chrono::steady_clock::time_point gait_start_time_;
   double current_gait_time_ = 0.0;

@@ -19,6 +19,7 @@ HikeClockPolicy::HikeClockPolicy(const YAML::Node &config) : BasePolicy(config) 
     joint_names_[name.as<std::string>()] = joint_counter++;
   }
 
+  cycle_time_ = config["cycle_time"].as<float>();
   single_obs_size_ = config["single_obs_size"].as<size_t>();
   obs_buffer_size_ = config["obs_buffer_size"].as<size_t>();
   action_size_ = config["action_size"].as<size_t>();
